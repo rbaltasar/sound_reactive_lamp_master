@@ -2,7 +2,6 @@
 #if !defined CONFIG_H
 #define CONFIG_H
 
-
 /* FFT configuration */
 #define NSAMPLES 256
 #define SAMPLING_FREQUENCY 20000
@@ -21,5 +20,6 @@
 #define DEBUG_TRACES_RGB 0
 #define DEBUG_TRACES_LED 0
 #define DEBUG_TRACES_CLAP 0
+
 
 #endif

@@ -9,7 +9,7 @@
 #endif
 #include "config.h"
 #include <driver/adc.h>
-#include "arduinoFFT.h"
+#include <arduinoFFT.h>
 
 class FrequencyUtilities
 {
