@@ -102,10 +102,28 @@ void setup_mqtt()
 
   /* Define callback function */
   client.setCallback(callback);
-
-  /* Subscribe to topics */
-  client.subscribe("lamp_network/master/mode_request");
-  client.subscribe("lamp_network/alive_rx");
+  
+  // Loop until we're reconnected
+  while (!client.connected())
+  {
+    Serial.print("Attempting MQTT connection...");
+    // Attempt to connect
+    if (client.connect(IPAddress_string.c_str())) //Unique name for each instance of a slave
+    {
+      Serial.println("connected");
+      /* Subscribe to topics */
+      client.subscribe("lamp_network/master/mode_request");
+      client.subscribe("lamp_network/alive_rx");
+    }
+    else
+    {
+      Serial.print("failed, rc=");
+      Serial.print(client.state());
+      Serial.println(" try again in 5 seconds");
+      // Wait 5 seconds before retrying
+      delay(500);
+    }
+  }
 }
 
 void setup() {
