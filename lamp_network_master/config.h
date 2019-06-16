@@ -12,6 +12,9 @@
 /* Clap detection config */
 #define THRESHOLD_CLAP 710
 
+/* default RGB value */
+#define RGB_DEFAULT 100
+
 /* Debugging */
 #define DEBUG_TRACES 1
 #define DEBUG_TRACES_TIME 0

@@ -3,7 +3,7 @@
 #include <ArduinoJson.h>
 
 #include "OTA_updater_ESP32.h"
-
+#include "UDPHandler.h"
 #include "common_datatypes.h"
 #include "network_settings.h"
 #include "config.h"
@@ -30,6 +30,15 @@ SerialFreqDisplay freqDisplay(THRESHOLD_DISPLAY, NSAMPLES/2);
 
 /* control variables */
 lamp_status status_request;
+lamp_status current_status;
+enum system_state_var
+{
+  STARTUP = 0,
+  NORMAL = 1,
+  STREAMING = 2
+};
+system_state_var sysState;
+UDPHandler udp_handler(&status_request);
 
 /* convert IP address to a string */
 String IpAddress2String(const IPAddress& ipAddress)
@@ -59,6 +68,43 @@ void callback(char* topic, byte* payload, unsigned int length)
   }
 }
 
+void status_update()
+{ 
+  
+  /* Check difference in mode request */
+  if(status_request.lamp_mode != current_status.lamp_mode)
+  {
+    
+    /* Streaming request */
+    if(status_request.lamp_mode == 3)
+    {
+      Serial.println("Streaming request received");
+      /* Start UDP socket */
+      udp_handler.begin();
+      status_request.streaming = true;
+      sysState = STREAMING;
+      /* Go to lamp mode 2 to show a demo effect */
+      status_request.lamp_mode = 2;
+    }
+
+    /* Streaming request */
+    if(status_request.lamp_mode == 1)
+    {
+      Serial.println("ON request received");
+      status_request.color.R = RGB_DEFAULT;
+      status_request.color.G = RGB_DEFAULT;
+      status_request.color.B = RGB_DEFAULT;
+      status_request.effect_delay = 50;
+      status_request.effect_speed = 50;
+      status_request.streaming = false;
+    }
+    
+    Serial.print("Received change request to mode ");
+    Serial.println(status_request.lamp_mode);
+       
+    current_status.lamp_mode = status_request.lamp_mode;   
+  }
+}
 void setup_OTA(const char *url)
 {
   updater.begin(url);
@@ -142,6 +188,8 @@ void setup() {
 
   FreqUtilities.begin();
   delay(100);
+
+  sysState = NORMAL;
   
   Serial.println("init OK");
 }
@@ -149,7 +197,7 @@ void setup() {
 void loop() {
   updater.OTA_handle();
   client.loop();
-
+  status_update();
   FreqUtilities.process_audio();
   freqDisplay.printFreq(FreqUtilities.get_processed_spectrum());
 

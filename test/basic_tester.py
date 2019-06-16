@@ -7,7 +7,7 @@ isRunning = True
 
 def threaded_function(arg):
     while(isRunning):
-        raw_input("Press Enter to continue...")
+        raw_input("Press Enter to start streaming...")
         if(isRunning == False):
             break
         print("Starting streaming!")
@@ -35,8 +35,8 @@ thread.start()
 
 try:
     while isRunning:
-        # client.publish("lamp_network/initcommrx","{\"mac_origin\":\"CC:50:E3:99:BA:40\",\"deviceID\":\"lamp\",\"OTA_URL\":\"lamp\",\"mode\":0}")
-        # time.sleep(4)
+        client.publish("lamp_network/initcommrx","{\"mac_origin\":\"CC:50:E3:99:BA:40\",\"deviceID\":\"lamp\",\"OTA_URL\":\"lamp\",\"mode\":0}")
+        time.sleep(4)
         client.publish("lamp_network/alive_rx","")
         time.sleep(4)
  
