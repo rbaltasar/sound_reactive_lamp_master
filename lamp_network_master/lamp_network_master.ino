@@ -47,7 +47,7 @@ void callback(char* topic, byte* payload, unsigned int length)
   JsonObject& root = jsonBuffer.parseObject(payload);
 
   /* Filter for topics */
-  if( strcmp(topic,"lamp_network/master/mode_request") == 0 )
+  if( strcmp(topic,"lamp_network/mode_request") == 0 )
   {
     status_request.lamp_mode = root["mode"];   
     Serial.println("mode_request");
@@ -112,7 +112,7 @@ void setup_mqtt()
     {
       Serial.println("connected");
       /* Subscribe to topics */
-      client.subscribe("lamp_network/master/mode_request");
+      client.subscribe("lamp_network/mode_request");
       client.subscribe("lamp_network/alive_rx");
     }
     else
@@ -151,7 +151,7 @@ void loop() {
   client.loop();
 
   FreqUtilities.process_audio();
-  // TODO freqDisplay.printFreq(FreqUtilities.get_processed_spectrum());
+  freqDisplay.printFreq(FreqUtilities.get_processed_spectrum());
 
   //delay(200);
 

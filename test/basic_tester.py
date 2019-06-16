@@ -11,7 +11,7 @@ def threaded_function(arg):
         if(isRunning == False):
             break
         print("Starting streaming!")
-        client.publish("lamp_network/master/mode_request","{\"id_mask\":1,\"mode\":3}")
+        client.publish("lamp_network/mode_request","{\"id_mask\":1,\"mode\":3}")
         time.sleep(4)   
 
 def on_message(client, userdata, message):
