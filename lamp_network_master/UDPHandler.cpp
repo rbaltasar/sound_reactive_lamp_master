@@ -96,6 +96,11 @@ void UDPHandler::synchronize(unsigned long delay_ms)
   
 }
 
+void UDPHandler::sendToAll(uint8_t *data, size_t len)
+{
+  m_UDP.broadcast(data, len);
+}
+
 bool UDPHandler::network_loop()
 {
 

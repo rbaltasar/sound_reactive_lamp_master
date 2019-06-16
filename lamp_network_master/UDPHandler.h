@@ -37,7 +37,7 @@ public:
   void stop();
 
   bool network_loop();
-
+  void sendToAll(uint8_t *data, size_t len);
  
 };
 

@@ -1,8 +1,7 @@
 #if !defined COMON_DATATYPES_H
 #define COMON_DATATYPES_H
 
-struct color_request 
-{
+struct color_request {
   uint8_t msgID;
   uint8_t red;
   uint8_t green;
