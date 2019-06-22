@@ -6,13 +6,25 @@ import subprocess
 isRunning = True
 
 def threaded_function(arg):
+    isStreamActive = False
+
     while(isRunning):
-        raw_input("Press Enter to start streaming...")
-        if(isRunning == False):
-            break
-        print("Starting streaming!")
-        client.publish("lamp_network/mode_request","{\"id_mask\":1,\"mode\":3}")
-        time.sleep(4)   
+        if(isStreamActive == False):
+            raw_input("Press Enter to START streaming...")
+            if(isRunning == False):
+                break
+            print("sending request...")
+            client.publish("lamp_network/mode_request","{\"id_mask\":1,\"mode\":3}")
+            time.sleep(2)
+            isStreamActive = True
+        else:
+            raw_input("Press Enter to STOP streaming...")
+            if(isRunning == False):
+                break
+            print("sending request...")
+            client.publish("lamp_network/mode_request","{\"id_mask\":1,\"mode\":0}")
+            time.sleep(2)
+            isStreamActive = False
 
 def on_message(client, userdata, message):
     print("message received " ,str(message.payload.decode("utf-8")))

@@ -40,7 +40,6 @@ enum system_state_var
 system_state_var sysState;
 UDPHandler udp_handler(&status_request);
 color_request streaming_msg;
-int iterations;
 
 /* convert IP address to a string */
 String IpAddress2String(const IPAddress& ipAddress)
@@ -80,24 +79,22 @@ void status_update()
     /* Streaming request */
     if(status_request.lamp_mode == 3)
     {
-      Serial.println("Streaming request received");
+      Serial.println("Streaming START request received");
+      
       /* Start UDP socket */
       status_request.streaming = true;
       sysState = STREAMING;
-      /* Go to lamp mode 2 to show a demo effect */
-      status_request.lamp_mode = 2;
+      init_stream();
     }
 
-    /* Streaming request */
-    if(status_request.lamp_mode == 1)
+    if(status_request.lamp_mode == 0)
     {
-      Serial.println("ON request received");
-      status_request.color.R = RGB_DEFAULT;
-      status_request.color.G = RGB_DEFAULT;
-      status_request.color.B = RGB_DEFAULT;
-      status_request.effect_delay = 50;
-      status_request.effect_speed = 50;
+      Serial.println("Streaming STOP request received");
+      
+      /* Stop UDP socket */
       status_request.streaming = false;
+      sysState = NORMAL;
+      stop_stream();
     }
     
     Serial.print("Received change request to mode ");
@@ -174,6 +171,100 @@ void setup_mqtt()
   }
 }
 
+void run_stream() {
+  double* frequencies;
+  int sound_bit = 0;
+  uint8_t default_red, default_green, default_blue;
+
+  Serial.println("run streaming...");
+  
+  default_red = 0x01;
+  default_green = 0x01;
+  default_blue = 0x01;
+      
+  // FreqUtilities.process_audio();
+  // freqDisplay.printFreq(FreqUtilities.get_processed_spectrum());
+  // frequencies = FreqUtilities.get_processed_spectrum();
+/*
+  for(uint8_t i = 2; i < (NSAMPLES / 2) - 1; i++)
+  {
+    if (frequencies[i] >= THRESHOLD_DISPLAY)
+    {
+      sound_bit = sound_bit = 1;
+    }
+  }
+*/       
+
+  /* Send messages */
+  streaming_msg.msgID = 0x02;
+  streaming_msg.red = default_red;
+  streaming_msg.green = default_green;
+  streaming_msg.blue = default_blue;
+  udp_handler.sendToAll((char *)&streaming_msg);
+  delay(1000);
+
+  streaming_msg.msgID = 0x01;
+  streaming_msg.red = default_red;
+  streaming_msg.green = default_green;
+  streaming_msg.blue = default_blue;
+
+  for(uint8_t red_count = 0; red_count < 7; red_count++)
+  {
+     streaming_msg.red = streaming_msg.red << 1;
+     udp_handler.sendToAll((char *)&streaming_msg);
+     delay(10);
+     udp_handler.sendToAll((char *)&streaming_msg);
+     delay(27); 
+  }
+  streaming_msg.red = default_red;
+  streaming_msg.green = default_green;
+  streaming_msg.blue = default_blue;
+  for(uint8_t green_count = 0; green_count < 7; green_count++)
+  {
+     streaming_msg.green = streaming_msg.green << 1;
+     udp_handler.sendToAll((char *)&streaming_msg);
+     delay(10);
+     udp_handler.sendToAll((char *)&streaming_msg);
+     delay(27); 
+  }
+  streaming_msg.red = default_red;
+  streaming_msg.green = default_green;
+  streaming_msg.blue = default_blue;
+  for(uint8_t rblue_count = 0; rblue_count < 7; rblue_count++)
+  {
+     streaming_msg.blue = streaming_msg.blue << 1;
+     udp_handler.sendToAll((char *)&streaming_msg);
+     delay(10);
+     udp_handler.sendToAll((char *)&streaming_msg);
+     delay(27); 
+  }
+}
+
+void stop_stream() {
+  Serial.println("stop streaming...");
+  
+  streaming_msg.msgID = 0x03;
+  streaming_msg.red = 0x01;
+  streaming_msg.green = 0x01;
+  streaming_msg.blue = 0x01;
+  
+  udp_handler.sendToAll((char *)&streaming_msg);
+  delay(12);
+  udp_handler.sendToAll((char *)&streaming_msg);
+  delay(12);
+  udp_handler.sendToAll((char *)&streaming_msg);
+  delay(12);
+  
+  udp_handler.stop();
+  delay(100);
+}
+
+void init_stream() {
+  Serial.println("start streaming...");
+  udp_handler.begin();
+  delay(100);
+}
+
 void setup() {
 
   Serial.begin(115200);
@@ -209,106 +300,12 @@ void loop()
       client.loop();
       status_update();
       updater.OTA_handle();  
-      iterations = 0;
       break;
     case STREAMING:
       client.loop();
       status_update();
-      
-      uint8_t default_red, default_green, default_blue;
-      default_red = 0x01;
-      default_green = 0x01;
-      default_blue = 0x01;
-      
-      Serial.println(iterations);
-
-      if(iterations == 0)
-      {
-        Serial.println("start streaming...");
-        udp_handler.begin();
-      }
-      else if(iterations > 10)
-      {
-        Serial.println("stop streaming");
-        streaming_msg.msgID = 0x03;
-        streaming_msg.red = default_red;
-        streaming_msg.green = default_green;
-        streaming_msg.blue = default_blue;
-        udp_handler.sendToAll((char *)&streaming_msg);
-        delay(12);
-        udp_handler.sendToAll((char *)&streaming_msg);
-        delay(12);
-        udp_handler.sendToAll((char *)&streaming_msg);
-        delay(12);
-        udp_handler.stop();
-        
-        sysState = NORMAL;
-      }
-      else
-      {
-        double* frequencies;
-        int sound_bit = 0;
-        
-        // FreqUtilities.process_audio();
-        // freqDisplay.printFreq(FreqUtilities.get_processed_spectrum());
-        // frequencies = FreqUtilities.get_processed_spectrum();
-/*
-        for(uint8_t i = 2; i < (NSAMPLES / 2) - 1; i++)
-        {
-          if (frequencies[i] >= THRESHOLD_DISPLAY)
-          {
-            sound_bit = sound_bit = 1;
-          }
-        }
- */       
-
-        /* Send messages */
-        streaming_msg.msgID = 0x02;
-        streaming_msg.red = default_red;
-        streaming_msg.green = default_green;
-        streaming_msg.blue = default_blue;
-        udp_handler.sendToAll((char *)&streaming_msg);
-        delay(1000);
-  
-        streaming_msg.msgID = 0x01;
-        streaming_msg.red = default_red;
-        streaming_msg.green = default_green;
-        streaming_msg.blue = default_blue;
-
-        for(uint8_t red_count = 0; red_count < 7; red_count++)
-        {
-           streaming_msg.red = streaming_msg.red << 1;
-           udp_handler.sendToAll((char *)&streaming_msg);
-           delay(10);
-           udp_handler.sendToAll((char *)&streaming_msg);
-           delay(27); 
-        }
-        streaming_msg.red = default_red;
-        streaming_msg.green = default_green;
-        streaming_msg.blue = default_blue;
-        for(uint8_t green_count = 0; green_count < 7; green_count++)
-        {
-           streaming_msg.green = streaming_msg.green << 1;
-           udp_handler.sendToAll((char *)&streaming_msg);
-           delay(10);
-           udp_handler.sendToAll((char *)&streaming_msg);
-           delay(27); 
-        }
-        streaming_msg.red = default_red;
-        streaming_msg.green = default_green;
-        streaming_msg.blue = default_blue;
-        for(uint8_t rblue_count = 0; rblue_count < 7; rblue_count++)
-        {
-           streaming_msg.blue = streaming_msg.blue << 1;
-           udp_handler.sendToAll((char *)&streaming_msg);
-           delay(10);
-           udp_handler.sendToAll((char *)&streaming_msg);
-           delay(27); 
-        }
-      }
-      
-      iterations++;
-      
+      updater.OTA_handle(); 
+      run_stream();
       break;
     default: 
       Serial.println("ERROR: unknown sysStatus");
