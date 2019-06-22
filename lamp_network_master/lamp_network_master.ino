@@ -114,16 +114,17 @@ void setup_OTA(const char *url)
 
 void setup_wifi(const char *s, const char *p)
 {
-  WiFi.begin(s, p); // Connect to the network
-  Serial.print("Connecting to ");
-  Serial.print(ssid);
-  Serial.println(" ...");
-
-  WiFi.mode(WIFI_STA);
-  
   int i = 0;
   while (WiFi.status() != WL_CONNECTED)
-  { // Wait for the Wi-Fi to connect
+  { 
+    WiFi.begin(s, p); // Connect to the network
+    Serial.print("Connecting to ");
+    Serial.print(ssid);
+    Serial.println(" ...");
+  
+    WiFi.mode(WIFI_STA);
+  
+    // Wait for the Wi-Fi to connect
     delay(1000);
     Serial.print(++i);
     Serial.print(' ');
@@ -189,7 +190,7 @@ void setup() {
 
   FreqUtilities.begin();
   delay(100);
-
+  
   sysState = NORMAL;
   
   Serial.println("init OK");
@@ -211,19 +212,36 @@ void loop()
       iterations = 0;
       break;
     case STREAMING:
+      client.loop();
+      status_update();
+      
       uint8_t default_red, default_green, default_blue;
       default_red = 0x01;
       default_green = 0x01;
       default_blue = 0x01;
       
-      iterations++;
       Serial.println(iterations);
-      
-      udp_handler.begin();
-      if(iterations >100)
+
+      if(iterations == 0)
+      {
+        Serial.println("start streaming...");
+        udp_handler.begin();
+      }
+      else if(iterations > 10)
       {
         Serial.println("stop streaming");
         streaming_msg.msgID = 0x03;
+        streaming_msg.red = default_red;
+        streaming_msg.green = default_green;
+        streaming_msg.blue = default_blue;
+        udp_handler.sendToAll((char *)&streaming_msg);
+        delay(12);
+        udp_handler.sendToAll((char *)&streaming_msg);
+        delay(12);
+        udp_handler.sendToAll((char *)&streaming_msg);
+        delay(12);
+        udp_handler.stop();
+        
         sysState = NORMAL;
       }
       else
@@ -245,47 +263,52 @@ void loop()
  */       
 
         /* Send messages */
-        streaming_msg.msgID = 0x01;
+        streaming_msg.msgID = 0x02;
         streaming_msg.red = default_red;
         streaming_msg.green = default_green;
         streaming_msg.blue = default_blue;
-        udp_handler.sendToAll((uint8_t *)&streaming_msg, sizeof(streaming_msg));
+        udp_handler.sendToAll((char *)&streaming_msg);
         delay(1000);
   
-        streaming_msg.msgID = 0x02;
+        streaming_msg.msgID = 0x01;
         streaming_msg.red = default_red;
         streaming_msg.green = default_green;
         streaming_msg.blue = default_blue;
 
         for(uint8_t red_count = 0; red_count < 7; red_count++)
         {
-           delay(10);
            streaming_msg.red = streaming_msg.red << 1;
-           udp_handler.sendToAll((uint8_t *)&streaming_msg, sizeof(streaming_msg));
-           delay(27);
+           udp_handler.sendToAll((char *)&streaming_msg);
+           delay(10);
+           udp_handler.sendToAll((char *)&streaming_msg);
+           delay(27); 
         }
         streaming_msg.red = default_red;
         streaming_msg.green = default_green;
         streaming_msg.blue = default_blue;
         for(uint8_t green_count = 0; green_count < 7; green_count++)
         {
-           delay(10);
            streaming_msg.green = streaming_msg.green << 1;
-           udp_handler.sendToAll((uint8_t *)&streaming_msg, sizeof(streaming_msg));
-           delay(27);
+           udp_handler.sendToAll((char *)&streaming_msg);
+           delay(10);
+           udp_handler.sendToAll((char *)&streaming_msg);
+           delay(27); 
         }
         streaming_msg.red = default_red;
         streaming_msg.green = default_green;
         streaming_msg.blue = default_blue;
         for(uint8_t rblue_count = 0; rblue_count < 7; rblue_count++)
         {
-           delay(10);
            streaming_msg.blue = streaming_msg.blue << 1;
-           udp_handler.sendToAll((uint8_t *)&streaming_msg, sizeof(streaming_msg));
-           delay(27);
+           udp_handler.sendToAll((char *)&streaming_msg);
+           delay(10);
+           udp_handler.sendToAll((char *)&streaming_msg);
+           delay(27); 
         }
       }
-
+      
+      iterations++;
+      
       break;
     default: 
       Serial.println("ERROR: unknown sysStatus");

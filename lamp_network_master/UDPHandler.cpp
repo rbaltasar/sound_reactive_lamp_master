@@ -15,15 +15,13 @@ UDPHandler::~UDPHandler()
 
 void UDPHandler::begin() 
 {
-  //m_UDP.begin(7001);
   if(m_UDP.listenMulticast(IPAddress(239,1,2,3), 7001)) {
         //Serial.print("UDP Listening on IP: ");
         //Serial.println(WiFi.localIP());
         m_UDP.onPacket([this](AsyncUDPPacket packet) {
 
-            m_message = packet.data();
+            // m_message = packet.data();
             Serial.println(msg_count++);
-#if 0
             Serial.print("UDP Packet Type: ");
             Serial.print(packet.isBroadcast()?"Broadcast":packet.isMulticast()?"Multicast":"Unicast");
             Serial.print(", From: ");
@@ -42,7 +40,6 @@ void UDPHandler::begin()
             Serial.println();
             //reply to the client
             //packet.printf("Got %u bytes of data", packet.length());
-#endif
             
 
             if(m_message[0] == 0x02)
@@ -96,9 +93,9 @@ void UDPHandler::synchronize(unsigned long delay_ms)
   
 }
 
-void UDPHandler::sendToAll(uint8_t *data, size_t len)
+void UDPHandler::sendToAll(char *data)
 {
-  m_UDP.broadcast(data, len);
+  m_UDP.broadcast(data);
 }
 
 bool UDPHandler::network_loop()
