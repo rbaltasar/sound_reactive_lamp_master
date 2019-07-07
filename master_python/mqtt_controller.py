@@ -21,6 +21,7 @@ class MQTTController:
         self._base_color_g = 0
         self._base_color_b = 0
         self._color_increment = 1
+        self._effect_type = 0
 
     def __del__(self):
 
@@ -44,6 +45,7 @@ class MQTTController:
             self._base_color_g = int(received_msg['base_color_g'])
             self._base_color_b = int(received_msg['base_color_b'])
             self._color_increment = int(received_msg['color_increment'])
+            self._effect_type = int(received_msg['effect_type'])
 
         elif(message.topic == "lamp_network/mode_request"):
 
@@ -94,4 +96,4 @@ class MQTTController:
 
     def get_msg_info(self):
 
-        return {'mode': self._mode, 'min_freq': self._min_freq, 'max_freq': self._max_freq, 'effect_delay': self._effect_delay, 'effect_direction': self._effect_direction, 'num_lamps': self._num_lamps, 'r':self._base_color_r, 'g': self._base_color_g, 'b': self._base_color_b, 'color_increment': self._color_increment}
+        return {'mode': self._mode, 'min_freq': self._min_freq, 'max_freq': self._max_freq, 'effect_delay': self._effect_delay, 'effect_direction': self._effect_direction, 'num_lamps': self._num_lamps, 'r':self._base_color_r, 'g': self._base_color_g, 'b': self._base_color_b, 'color_increment': self._color_increment, 'effect_type': self._effect_type}

@@ -7,28 +7,21 @@ mqtt_evaluation_ratio = 20
 mqtt_evaluation_counter = 0
 
 # Shared memory (dictionary)
-system_status = {'mode': 0, 'min_freq': 0, 'max_freq': 0, 'effect_delay': 0, 'effect_direction': 0, 'num_lamps': 0, 'r': 0, 'g': 0, 'b': 0, 'color_increment': 1}
+system_status = {'mode': 0, 'effect_type': 0, 'min_freq': 0, 'max_freq': 0, 'effect_delay': 0, 'effect_direction': 0, 'num_lamps': 0, 'r': 0, 'g': 0, 'b': 0, 'color_increment': 1}
 
 # Communication controllers
 mqtt_controller = MQTTController()
 
-def select_visualization_type(mode_req):
+def select_visualization_type(effect_type):
 
-    if(mode_req == 100 or mode_req == 106):
+    if(effect_type == 0):
         visualization.visualization_effect = visualization.visualize_scroll
-        if(mode_req == 100):
-            visualization.amplitude_type = 'BUBBLE'
-            udp_handler.set_mode('BUBBLE')
-        elif(mode_req == 106):
-            visualization.amplitude_type = 'BARS'
-            udp_handler.set_mode('BARS')
-
-    elif(mode_req == 101 or mode_req == 102):
+    elif(effect_type == 1):
         visualization.visualization_effect = visualization.visualize_energy
-        udp_handler.set_mode('BARS')
-    elif(mode_req == 103 or mode_req == 104 or mode_req == 105):
+    elif(effect_type == 2):
         visualization.visualization_effect = visualization.visualize_spectrum
-        udp_handler.set_mode('BARS')
+    elif(effect_type == 3):
+        visualization.visualization_effect = visualization.visualize_spectrum
 
 def evaluate_mode_req(mode_req):
 
@@ -47,7 +40,6 @@ def evaluate_mode_req(mode_req):
         visualization.begin()
         # Update local memory
         system_status['mode'] = mode_req
-
 
     # System requires switch from UDP to MQTT
     elif( (system_status['mode'] >= 100) and (mode_req < 100 ) ):
@@ -75,16 +67,13 @@ def evaluate_mode_req(mode_req):
 
         pass
 
-    select_visualization_type(mode_req)
-
-
 def update_configuration():
 
     #Send configuration parameters to the slaves
     udp_handler.send_configuration(system_status['effect_delay'], system_status['effect_direction'],system_status['r'],system_status['g'],system_status['b'], system_status['color_increment'])
 
     #Update the visualization algorithm
-
+    select_visualization_type(system_status['effect_type'])
     #Update frequency (global)
 
 def mqtt_network_loop():
@@ -176,6 +165,13 @@ def mqtt_network_loop():
                 changes_count += 1
                 # Update local memory
                 system_status['color_increment'] = mqtt_msg['color_increment']
+
+            if( system_status['effect_type'] is not mqtt_msg['effect_type'] ):
+
+                # Increment change count
+                changes_count += 1
+                # Update local memory
+                system_status['effect_type'] = mqtt_msg['effect_type']
 
             if(changes_count > 0):
 
