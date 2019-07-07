@@ -92,7 +92,7 @@ class UDPController:
             m = ''
             m += chr(msgId) + chr(mask) + chr(int(r)) + chr(int(g)) + chr(int(b)) + chr(int(ampl))
 
-            self.send_multicast(m, 3, 0.005, 0.01)
+            self.send_multicast(m, 4, 0.001, 0)
 
     def send_configuration(self, effect_delay, effect_direction, r, g, b, increment):
 
