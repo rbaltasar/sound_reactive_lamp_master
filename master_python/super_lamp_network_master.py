@@ -186,7 +186,7 @@ if __name__== "__main__":
 
 
     mqtt_controller.begin()
-    visualization.configure_gui()
+#    visualization.configure_gui()
 
     while True:
 
