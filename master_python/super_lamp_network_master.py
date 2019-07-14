@@ -7,7 +7,24 @@ mqtt_evaluation_ratio = 20
 mqtt_evaluation_counter = 0
 
 # Shared memory (dictionary)
-system_status = {'mode': 0, 'effect_type': 0, 'min_freq': 0, 'max_freq': 0, 'effect_delay': 0, 'effect_direction': 0, 'num_lamps': 0, 'r': 0, 'g': 0, 'b': 0, 'color_increment': 1}
+system_status = { \
+    'mode': 0, \
+    'effect_type': 0, \
+    'min_freq': 0, \
+    'max_freq': 0, \
+    'effect_delay': 0, \
+    'effect_direction': 0, \
+    'num_windows': 0, \
+    'num_lamps': 0, \
+    'r': 0, \
+    'g': 0, \
+    'b': 0, \
+    'color_increment': 1, \
+    'num_windows': 1
+    }
+
+#Frequency window used for each lamp (only spectrum window effect)
+frequency_windows_masks = []
 
 # Communication controllers
 mqtt_controller = MQTTController()
@@ -19,7 +36,7 @@ def select_visualization_type(effect_type):
     elif(effect_type == 1):
         visualization.visualization_effect = visualization.visualize_energy
     elif(effect_type == 2):
-        visualization.visualization_effect = visualization.visualize_spectrum
+        visualization.visualization_effect = visualization.visualize_energy_spectrum
     elif(effect_type == 3):
         visualization.visualization_effect = visualization.visualize_spectrum
 
@@ -44,6 +61,7 @@ def evaluate_mode_req(mode_req):
     # System requires switch from UDP to MQTT
     elif( (system_status['mode'] >= 100) and (mode_req < 100 ) ):
 
+        #Sleep a while to reduce network congestion to ensure that the mode request is received
         sleep(3)
         # Send mode change request to the slaves via UDP
         udp_handler.send_mode_request(mode_req)
@@ -67,6 +85,40 @@ def evaluate_mode_req(mode_req):
 
         pass
 
+def update_frequency_windows(num_windows):
+
+    print("Updating frequency windows")
+
+    #Set number of windows in visualization algorithms
+    visualization.num_spectrum_windows = num_windows
+
+    #Delete old windows
+    while len(frequency_windows_masks) > 0:
+        frequency_windows_masks.pop(0)
+
+    #Get new frequency windows
+    freq_windows = mqtt_controller.get_freq_windows()
+
+    print("Freq windows: ", freq_windows)
+
+    #Compute masks out of frequency windows
+    for i in range(0,num_windows):
+
+        mask = 0
+
+        for j in range(0,system_status['num_lamps']):
+
+            if (freq_windows[j] - 1) == i:
+                mask |= 1 << j
+
+        frequency_windows_masks.append(mask)
+
+    print("New computed masks: ", frequency_windows_masks)
+
+    #Set the masks in the UDP controller
+    udp_handler.set_window_masks(frequency_windows_masks)
+
+
 def update_configuration():
 
     #Send configuration parameters to the slaves
@@ -74,7 +126,9 @@ def update_configuration():
 
     #Update the visualization algorithm
     select_visualization_type(system_status['effect_type'])
-    #Update frequency (global)
+
+    update_frequency_windows(system_status['num_windows'])
+
 
 def mqtt_network_loop():
 
@@ -97,85 +151,21 @@ def mqtt_network_loop():
 
             mqtt_msg = mqtt_controller.get_msg_info()
 
-            # Update minimum spectrum frequency
-            if( system_status['min_freq'] is not mqtt_msg['min_freq'] ):
+            system_status['min_freq'] = mqtt_msg['min_freq']
+            system_status['num_windows'] = mqtt_msg['num_freq_windows']
+            system_status['max_freq'] = mqtt_msg['max_freq']
+            system_status['effect_delay'] = mqtt_msg['effect_delay']
+            system_status['effect_direction'] = mqtt_msg['effect_direction']
+            system_status['effect_delay'] = mqtt_msg['effect_delay']
+            system_status['r'] = mqtt_msg['r']
+            system_status['g'] = mqtt_msg['g']
+            system_status['b'] = mqtt_msg['b']
+            system_status['color_increment'] = mqtt_msg['color_increment']
+            system_status['effect_type'] = mqtt_msg['effect_type']
+            system_status['num_windows'] = mqtt_msg['num_freq_windows']
+            system_status['num_lamps'] = mqtt_msg['num_lamps']
 
-                # Increment change count
-                changes_count += 1
-                # Update local memory
-                system_status['min_freq'] = mqtt_msg['min_freq']
-
-            # Update maximum spectrum frequency
-            if( system_status['max_freq'] is not mqtt_msg['max_freq'] ):
-
-                # Increment change count
-                changes_count += 1
-                # Update local memory
-                system_status['max_freq'] = mqtt_msg['max_freq']
-
-            # Update the effect delay (in slaves)
-            if( system_status['effect_delay'] is not mqtt_msg['effect_delay'] ):
-
-                # Increment change count
-                changes_count += 1
-                # Update local memory
-                system_status['effect_delay'] = mqtt_msg['effect_delay']
-
-            # Update the effect direction (in slaves)
-            if( system_status['effect_direction'] is not mqtt_msg['effect_direction'] ):
-
-                # Increment change count
-                changes_count += 1
-                # Update local memory
-                system_status['effect_direction'] = mqtt_msg['effect_direction']
-
-            # Update the effect delay (in slaves)
-            if( system_status['effect_delay'] is not mqtt_msg['effect_delay'] ):
-
-                # Increment change count
-                changes_count += 1
-                # Update local memory
-                system_status['effect_delay'] = mqtt_msg['effect_delay']
-
-            # Update the base color
-            if( system_status['r'] is not mqtt_msg['r'] ):
-
-                # Increment change count
-                changes_count += 1
-                # Update local memory
-                system_status['r'] = mqtt_msg['r']
-
-            if( system_status['g'] is not mqtt_msg['g'] ):
-
-                # Increment change count
-                changes_count += 1
-                # Update local memory
-                system_status['g'] = mqtt_msg['g']
-
-            if( system_status['b'] is not mqtt_msg['b'] ):
-
-                # Increment change count
-                changes_count += 1
-                # Update local memory
-                system_status['b'] = mqtt_msg['b']
-
-            if( system_status['color_increment'] is not mqtt_msg['color_increment'] ):
-
-                # Increment change count
-                changes_count += 1
-                # Update local memory
-                system_status['color_increment'] = mqtt_msg['color_increment']
-
-            if( system_status['effect_type'] is not mqtt_msg['effect_type'] ):
-
-                # Increment change count
-                changes_count += 1
-                # Update local memory
-                system_status['effect_type'] = mqtt_msg['effect_type']
-
-            if(changes_count > 0):
-
-                update_configuration()
+            update_configuration()
 
     else:
 

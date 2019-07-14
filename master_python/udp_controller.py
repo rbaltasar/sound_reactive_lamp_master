@@ -11,6 +11,8 @@ class UDPController:
         self._last_b = 0
         self._last_ampl = 0
 
+        self._window_masks = []
+
         self._mode = 100
 
     def __del__(self):
@@ -33,6 +35,10 @@ class UDPController:
     def set_mode(self,mode):
 
         self._mode = mode
+
+    def set_window_masks(self,masks):
+
+        self._window_masks = masks
 
     def compare_and_update(self, r,g,b,ampl):
 
@@ -80,7 +86,7 @@ class UDPController:
         m = ''
         m += chr(msgId) + chr(mode) + chr(mask)
 
-        self.send_multicast(m, 5, 0.5, 0)
+        self.send_multicast(m, 8, 0.3, 0)
 
     def send_payload_single(self, r, g, b, ampl):
 
@@ -94,6 +100,26 @@ class UDPController:
 
             self.send_multicast(m, 4, 0.001, 0)
 
+    def send_payload_multiple(self, size, payload_list):
+
+        msgId = 0x05
+
+        #Build message header (msg ID + msg size)
+        m = ''
+        m += chr(msgId) + chr(size)
+
+        #Build message body (mask + payload)
+        for i in range(0,size):
+            #Add the mask
+            m += chr(self._window_masks[i])
+            #Add the payload
+            m += chr(payload_list[i][0]) #red
+            m += chr(payload_list[i][1]) #green
+            m += chr(payload_list[i][2]) #blue
+            m += chr(payload_list[i][3]) #amplitude
+
+        self.send_multicast(m, 4, 0.001, 0)
+
     def send_configuration(self, effect_delay, effect_direction, r, g, b, increment):
 
         msgId = 0x07
@@ -101,6 +127,6 @@ class UDPController:
         m = ''
         m += chr(msgId) + chr(int(effect_delay)) + chr(int(effect_direction)) + chr(int(r)) + chr(int(g)) + chr(int(b)) + chr(int(increment))
 
-        self.send_multicast(m, 4, 0.1, 0)
+        self.send_multicast(m, 8, 0.1, 0)
 
 udp_handler = UDPController()

@@ -15,12 +15,16 @@ _time_prev = time.time() * 1000.0
 _fps = dsp.ExpFilter(val=config.FPS, alpha_decay=0.2, alpha_rise=0.2)
 """The low-pass filter used to estimate frames-per-second"""
 
-# Shared memory
+# Shared memory. Simple payload
 effect_payload_r = 0
 effect_payload_g = 0
 effect_payload_b = 0
 effect_payload_ampl = 0
-amplitude_type = 'BUBBLE'
+
+#Shared memory. Spectrum payload. Allocate for the maximum number of lamps
+num_spectrum_windows = 0
+
+effect_payload_spectrum = np.tile(0, (6, 4))
 
 def frames_per_second():
     """Return the estimated frames per second
@@ -104,10 +108,26 @@ common_mode = dsp.ExpFilter(np.tile(0.01, config.N_PIXELS // 2),
                        alpha_decay=0.99, alpha_rise=0.01)
 p_filt = dsp.ExpFilter(np.tile(1, (3, config.N_PIXELS // 2)),
                        alpha_decay=0.1, alpha_rise=0.99)
+
 p = np.tile(1.0, (3, config.N_PIXELS // 2))
+
 gain = dsp.ExpFilter(np.tile(0.01, config.N_FFT_BINS),
                      alpha_decay=0.001, alpha_rise=0.99)
 
+
+p_filt_window = []
+p_filt_window.append(dsp.ExpFilter(np.tile(1, (3, config.N_PIXELS // 2)),
+                       alpha_decay=0.1, alpha_rise=0.99))
+p_filt_window.append(dsp.ExpFilter(np.tile(1, (3, config.N_PIXELS // 2)),
+                       alpha_decay=0.1, alpha_rise=0.99))
+p_filt_window.append(dsp.ExpFilter(np.tile(1, (3, config.N_PIXELS // 2)),
+                       alpha_decay=0.1, alpha_rise=0.99))
+p_filt_window.append(dsp.ExpFilter(np.tile(1, (3, config.N_PIXELS // 2)),
+                       alpha_decay=0.1, alpha_rise=0.99))
+p_filt_window.append(dsp.ExpFilter(np.tile(1, (3, config.N_PIXELS // 2)),
+                       alpha_decay=0.1, alpha_rise=0.99))
+p_filt_window.append(dsp.ExpFilter(np.tile(1, (3, config.N_PIXELS // 2)),
+                       alpha_decay=0.1, alpha_rise=0.99))
 
 def compute_amplitude_energy(r,g,b):
 
@@ -116,17 +136,6 @@ def compute_amplitude_energy(r,g,b):
 
     return np.clip(int(amplitude),0, 80).astype(int)
 
-def compute_amplitude_scrol(r,g,b):
-
-    if(amplitude_type == 'BARS'):
-
-        return compute_amplitude_energy(r,g,b)
-
-    else:
-        if(r > 255 or g > 255 or b > 255):
-            return int(3)
-        else:
-            return int(1)
 
 def visualize_scroll(y):
     """Effect that originates in the center and scrolls outwards"""
@@ -144,7 +153,7 @@ def visualize_scroll(y):
     effect_payload_r = r
     effect_payload_g = g
     effect_payload_b = b
-    effect_payload_ampl = compute_amplitude_scrol(r,g,b)
+    effect_payload_ampl = compute_amplitude_energy(r,g,b)
 
     # Scrolling effect window
     p[:, 1:] = p[:, :-1]
@@ -193,6 +202,68 @@ def visualize_energy(y):
     effect_payload_g = retval[1][int(len(retval[1])/2)]
     effect_payload_b = retval[2][int(len(retval[2])/2)]
     effect_payload_ampl = compute_amplitude_energy(effect_payload_r,effect_payload_g,effect_payload_b)
+
+
+    #print("R: ", effect_payload_r, "G: ",effect_payload_g, "B: ", effect_payload_b, "Amplitude: ", effect_payload_ampl)
+
+    return retval
+
+def visualize_energy_spectrum(y):
+
+    global p
+
+    y = np.copy(y)
+    gain.update(y)
+    y /= gain.value
+
+    # Scale by the width of the LED strip
+    y *= float((config.N_PIXELS // 2) - 1)
+
+    #Process each of the spectrum windows independently
+    for i in range(0,num_spectrum_windows):
+
+        #Extract the spectrum information
+        freq_start = i * (len(y) // num_spectrum_windows)
+        freq_end = freq_start + (len(y) // num_spectrum_windows)
+
+        y_window = np.copy(y[freq_start:freq_end])
+
+        #print("Window: ", i)
+        #print("Frequency window: ", freq_start, "-", freq_end)
+
+        # Map color channels according to energy in the different freq bands
+        scale = 0.9
+        r = np.clip(int(np.mean(y_window[:len(y_window) // 3]**scale)), 0, 255).astype(int)
+        g = np.clip(int(np.mean(y_window[len(y_window) // 3: 2 * len(y_window) // 3]**scale)), 0, 255).astype(int)
+        b = np.clip(int(np.mean(y_window[2 * len(y_window) // 3:]**scale)), 0, 255).astype(int)
+
+        # Assign color to different frequency regions
+        p[0, :r] = 255.0
+        p[0, r:] = 0.0
+        p[1, :g] = 255.0
+        p[1, g:] = 0.0
+        p[2, :b] = 255.0
+        p[2, b:] = 0.0
+
+        p_filt_window[i].update(p)
+        p = np.round(p_filt_window[i].value)
+
+        global effect_payload_r, effect_payload_g, effect_payload_b, effect_payload_ampl
+        effect_payload_spectrum[i][0] = p[0][r]
+        effect_payload_spectrum[i][1] = p[1][g]
+        effect_payload_spectrum[i][2] = p[2][b]
+        effect_payload_spectrum[i][3] = compute_amplitude_energy(p[0][r],p[1][g],p[2][b])
+
+
+        #print("R: ", effect_payload_spectrum[i][0], "G: ",effect_payload_spectrum[i][1], "B: ", effect_payload_spectrum[i][2], "Amplitude: ", effect_payload_spectrum[i][3])
+
+        # Apply substantial blur to smooth the edges
+        p[0, :] = gaussian_filter1d(p[0, :], sigma=4.0)
+        p[1, :] = gaussian_filter1d(p[1, :], sigma=4.0)
+        p[2, :] = gaussian_filter1d(p[2, :], sigma=4.0)
+
+        # Set the new pixel value
+        retval = np.concatenate((p[:, ::-1], p), axis=1)
 
     return retval
 
@@ -270,8 +341,16 @@ def microphone_update(audio_samples):
         led.pixels = output
         #led.update()
 
-        udp_handler.send_payload_single(effect_payload_r,effect_payload_g,effect_payload_b,effect_payload_ampl)
+        # Send single payload
+        if(visualization_effect is not visualize_energy_spectrum):
+            udp_handler.send_payload_single(effect_payload_r,effect_payload_g,effect_payload_b,effect_payload_ampl)
 
+        #Send multiple payload
+        else:
+
+            udp_handler.send_payload_multiple(num_spectrum_windows, effect_payload_spectrum)
+
+            pass
 
         if config.USE_GUI:
             # Plot filterbank output
@@ -298,7 +377,7 @@ samples_per_frame = int(config.MIC_RATE / config.FPS)
 # Array containing the rolling audio sample window
 y_roll = np.random.rand(config.N_ROLLING_HISTORY, samples_per_frame) / 1e16
 
-visualization_effect = visualize_spectrum
+visualization_effect = visualize_energy_spectrum
 """Visualization effect to display on the LED strip"""
 
 # Global microphone
@@ -342,7 +421,7 @@ def configure_gui():
     view.setWindowTitle('Visualization')
     view.resize(800,600)
     # Mel filterbank plot
-    fft_plot = layout.addPlot(title='Filterbank Output', colspan=3)
+    fft_plot = layout.addPlot(title='Filterbank Output', colspan=4)
     fft_plot.setRange(yRange=[-0.1, 1.2])
     fft_plot.disableAutoRange(axis=pg.ViewBox.YAxis)
     x_data = np.array(range(1, config.N_FFT_BINS + 1))
@@ -352,7 +431,7 @@ def configure_gui():
     fft_plot.addItem(mel_curve)
     # Visualization plot
     layout.nextRow()
-    led_plot = layout.addPlot(title='Visualization Output', colspan=3)
+    led_plot = layout.addPlot(title='Visualization Output', colspan=4)
     led_plot.setRange(yRange=[-5, 260])
     led_plot.disableAutoRange(axis=pg.ViewBox.YAxis)
     # Pen for each of the color channel curves
@@ -397,39 +476,54 @@ def configure_gui():
         global visualization_effect
         visualization_effect = visualize_energy
         energy_label.setText('Energy', color=active_color)
+        energy_spectr_label.setText('Energy spectr', color=inactive_color)
+        scroll_label.setText('Scroll', color=inactive_color)
+        spectrum_label.setText('Spectrum', color=inactive_color)
+    def energy_spectrum_click(x):
+        global visualization_effect
+        visualization_effect = visualize_energy_spectrum
+        energy_label.setText('Energy', color=inactive_color)
+        energy_spectr_label.setText('Energy spectr', color=active_color)
         scroll_label.setText('Scroll', color=inactive_color)
         spectrum_label.setText('Spectrum', color=inactive_color)
     def scroll_click(x):
         global visualization_effect
         visualization_effect = visualize_scroll
         energy_label.setText('Energy', color=inactive_color)
+        energy_spectr_label.setText('Energy spectr', color=inactive_color)
         scroll_label.setText('Scroll', color=active_color)
         spectrum_label.setText('Spectrum', color=inactive_color)
     def spectrum_click(x):
         global visualization_effect
         visualization_effect = visualize_spectrum
         energy_label.setText('Energy', color=inactive_color)
+        energy_spectr_label.setText('Energy spectr', color=inactive_color)
         scroll_label.setText('Scroll', color=inactive_color)
         spectrum_label.setText('Spectrum', color=active_color)
+
     # Create effect "buttons" (labels with click event)
     energy_label = pg.LabelItem('Energy')
+    energy_spectr_label = pg.LabelItem('Energy Spectr')
     scroll_label = pg.LabelItem('Scroll')
     spectrum_label = pg.LabelItem('Spectrum')
     energy_label.mousePressEvent = energy_click
+    energy_spectr_label.mousePressEvent = energy_spectrum_click
     scroll_label.mousePressEvent = scroll_click
     spectrum_label.mousePressEvent = spectrum_click
     energy_click(0)
     # Layout
     layout.nextRow()
-    layout.addItem(freq_label, colspan=3)
+    layout.addItem(freq_label, colspan=4)
     layout.nextRow()
-    layout.addItem(freq_slider, colspan=3)
+    layout.addItem(freq_slider, colspan=4)
     layout.nextRow()
     layout.addItem(energy_label)
     layout.addItem(scroll_label)
     layout.addItem(spectrum_label)
+    layout.addItem(energy_spectr_label)
 
 if __name__ == '__main__':
+
 
     if config.USE_GUI:
         configure_gui()
