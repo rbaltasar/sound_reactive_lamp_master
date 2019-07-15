@@ -99,9 +99,9 @@ def interpolate(y, new_length):
 
 
 r_filt = dsp.ExpFilter(np.tile(0.01, config.N_PIXELS // 2),
-                       alpha_decay=0.2, alpha_rise=0.99)
+                       alpha_decay=0.1, alpha_rise=0.99)
 g_filt = dsp.ExpFilter(np.tile(0.01, config.N_PIXELS // 2),
-                       alpha_decay=0.05, alpha_rise=0.3)
+                       alpha_decay=0.1, alpha_rise=0.3)
 b_filt = dsp.ExpFilter(np.tile(0.01, config.N_PIXELS // 2),
                        alpha_decay=0.1, alpha_rise=0.5)
 common_mode = dsp.ExpFilter(np.tile(0.01, config.N_PIXELS // 2),
@@ -203,8 +203,7 @@ def visualize_energy(y):
     effect_payload_b = retval[2][int(len(retval[2])/2)]
     effect_payload_ampl = compute_amplitude_energy(effect_payload_r,effect_payload_g,effect_payload_b)
 
-
-    #print("R: ", effect_payload_r, "G: ",effect_payload_g, "B: ", effect_payload_b, "Amplitude: ", effect_payload_ampl)
+    print("R: ", effect_payload_r, "G: ",effect_payload_g, "B: ", effect_payload_b, "Amplitude: ", effect_payload_ampl)
 
     return retval
 
@@ -282,11 +281,54 @@ def visualize_spectrum(y):
     r = r_filt.update(y - common_mode.value)
     g = np.abs(diff)
     b = b_filt.update(np.copy(y))
+
+    #Customized visualization of the spectrum
+    #Process each of the spectrum windows independently
+    for i in range(0,num_spectrum_windows):
+
+        #Compute spectrum window
+        freq_start = i * (len(r) // num_spectrum_windows)
+        freq_end = freq_start + (len(r) // num_spectrum_windows)
+
+        #print("Freq window: ", freq_start, "/", freq_end)
+
+        #Find the maximum contribution in the window for each color
+        max_r = np.max(r[freq_start:freq_end])
+        max_g = np.max(g[freq_start:freq_end])
+        max_b = np.max(b[freq_start:freq_end])
+
+        #print("Max r: ", max_r," Max g: ", max_g," Max b: ", max_b )
+
+        #Find the freq with the maximum contribution
+        max_freq = 0
+        if( (max_r > max_g) and (max_r > max_b)):
+            max_freq = np.argmax(r[freq_start:freq_end]) + freq_start
+        if( (max_g > max_r) and (max_g > max_b)):
+            max_freq = np.argmax(g[freq_start:freq_end]) + freq_start
+        if( (max_b > max_r) and (max_b > max_g)):
+            max_freq = np.argmax(b[freq_start:freq_end]) + freq_start
+
+        #print("Max freq: ", max_freq)
+
+        r_final = np.clip(r[max_freq] * 255,0,255).astype(int)
+        g_final = np.clip(g[max_freq] * 255,0,255).astype(int)
+        b_final = np.clip(b[max_freq] * 255,0,255).astype(int)
+
+        #print("Final r: ", r_final," Final g: ", g_final," Final b: ", b_final )
+
+        #Use the RGB values at the freq with maximum contribution
+        global effect_payload_r, effect_payload_g, effect_payload_b, effect_payload_ampl
+        effect_payload_spectrum[i][0] = r_final
+        effect_payload_spectrum[i][1] = g_final
+        effect_payload_spectrum[i][2] = b_final
+        effect_payload_spectrum[i][3] = compute_amplitude_energy(r_final,g_final,b_final)
+
     # Mirror the color channels for symmetric output
     r = np.concatenate((r[::-1], r))
     g = np.concatenate((g[::-1], g))
     b = np.concatenate((b[::-1], b))
-    output = np.array([r, g,b]) * 255
+    output = np.array([r,g,b]) * 255
+
     return output
 
 
@@ -341,16 +383,13 @@ def microphone_update(audio_samples):
         led.pixels = output
         #led.update()
 
-        # Send single payload
-        if(visualization_effect is not visualize_energy_spectrum):
-            udp_handler.send_payload_single(effect_payload_r,effect_payload_g,effect_payload_b,effect_payload_ampl)
-
-        #Send multiple payload
-        else:
-
+        # Send multiple payload
+        if( (visualization_effect is visualize_energy_spectrum) or (visualization_effect is visualize_spectrum)):
+            #pass
             udp_handler.send_payload_multiple(num_spectrum_windows, effect_payload_spectrum)
-
-            pass
+        #Send single payload
+        else:
+            udp_handler.send_payload_single(effect_payload_r,effect_payload_g,effect_payload_b,effect_payload_ampl)
 
         if config.USE_GUI:
             # Plot filterbank output
