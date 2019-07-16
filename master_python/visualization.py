@@ -7,6 +7,7 @@ import config
 import microphone
 import dsp
 import led
+import rgb_utilities
 from udp_controller import udp_handler
 
 _time_prev = time.time() * 1000.0
@@ -25,6 +26,12 @@ effect_payload_ampl = 0
 num_spectrum_windows = 0
 
 effect_payload_spectrum = np.tile(0, (6, 4))
+
+frequency_colors = np.tile(0, (config.N_PIXELS // 2, 3))
+frequency_colors_base = np.tile(0, 3)
+frequency_colors_increment = 0
+
+lamp_effect = 'BARS'
 
 def frames_per_second():
     """Return the estimated frames per second
@@ -137,6 +144,38 @@ def compute_amplitude_energy(r,g,b):
 
     return np.clip(int(amplitude),0, 80).astype(int)
 
+def generate_frequency_colors(r_base, g_base, b_base, increment):
+
+    global frequency_colors_increment
+
+    #Check if update is needed
+    if(r_base != frequency_colors_base[0] or g_base != frequency_colors_base[1] or b_base != frequency_colors_base[2] or increment != frequency_colors_increment):
+
+        print("Base color: ", r_base, g_base, b_base, " Increment: ", increment)
+
+        #Translate base color to HSV
+        hsv_base = rgb_utilities.rgb2hsv([r_base,g_base,b_base])
+
+        #Increment the base Hue for each frequency
+        for i in range(0,config.N_PIXELS // 2):
+            hsv_base[0] += increment
+
+            if(hsv_base[0] > 360.0):
+                 hsv_base[0] = 0
+
+            rgb_color = rgb_utilities.hsv2rgb(hsv_base)
+
+            frequency_colors[i] = rgb_color
+
+
+        print("Generated color", frequency_colors)
+
+        #Update the state
+        frequency_colors_base[0] = r_base
+        frequency_colors_base[1] = g_base
+        frequency_colors_base[2] = b_base
+        frequency_colors_increment = increment
+
 
 def visualize_scroll(y):
     """Effect that originates in the center and scrolls outwards"""
@@ -204,7 +243,7 @@ def visualize_energy(y):
     effect_payload_b = retval[2][int(len(retval[2])/2)]
     effect_payload_ampl = compute_amplitude_energy(effect_payload_r,effect_payload_g,effect_payload_b)
 
-    print("R: ", effect_payload_r, "G: ",effect_payload_g, "B: ", effect_payload_b, "Amplitude: ", effect_payload_ampl)
+    #print("R: ", effect_payload_r, "G: ",effect_payload_g, "B: ", effect_payload_b, "Amplitude: ", effect_payload_ampl)
 
     return retval
 
@@ -274,6 +313,7 @@ _prev_spectrum = np.tile(0.01, config.N_PIXELS // 2)
 def visualize_spectrum(y):
     """Effect that maps the Mel filterbank frequencies onto the LED strip"""
     global _prev_spectrum
+    global effect_payload_r, effect_payload_g, effect_payload_b, effect_payload_ampl
     y = np.copy(interpolate(y, config.N_PIXELS // 2))
     common_mode.update(y)
     diff = y - _prev_spectrum
@@ -314,22 +354,38 @@ def visualize_spectrum(y):
             max_val = max_b
 
         max_val = np.clip(max_val * 255,0,255).astype(int)
+        max_freq = np.clip(max_freq, 0, len(r)).astype(int)
 
-        #print("Max freq: ", max_freq)
-        #print("Max val: ", max_val)
+        print("Max freq: ", max_freq)
+        print("Max val: ", max_val)
 
         r_final = np.clip(r[max_freq] * 255,0,255).astype(int)
         g_final = np.clip(g[max_freq] * 255,0,255).astype(int)
         b_final = np.clip(b[max_freq] * 255,0,255).astype(int)
 
-        #print("Final r: ", r_final," Final g: ", g_final," Final b: ", b_final )
-
         #Use the RGB values at the freq with maximum contribution
-        global effect_payload_r, effect_payload_g, effect_payload_b, effect_payload_ampl
-        effect_payload_spectrum[i][0] = r_final
-        effect_payload_spectrum[i][1] = g_final
-        effect_payload_spectrum[i][2] = b_final
-        effect_payload_spectrum[i][3] = compute_amplitude_energy(max_val,max_val,max_val)
+        if(lamp_effect == 'BARS' or lamp_effect == 'BARS_COLOR'):
+            effect_payload_spectrum[i][0] = r_final
+            effect_payload_spectrum[i][1] = g_final
+            effect_payload_spectrum[i][2] = b_final
+            effect_payload_spectrum[i][3] = compute_amplitude_energy(max_val,max_val,max_val)
+        elif(lamp_effect == 'BUBBLE'):
+
+            amplitude = compute_amplitude_energy(r_final,g_final,b_final) ** 0.8
+
+            if(amplitude < 5):
+                r_final = 0
+                g_final = 0
+                b_final = 0
+            else:
+                r_final = frequency_colors[max_freq][0]
+                g_final = frequency_colors[max_freq][1]
+                b_final = frequency_colors[max_freq][2]
+
+            effect_payload_spectrum[i][0] = r_final
+            effect_payload_spectrum[i][1] = g_final
+            effect_payload_spectrum[i][2] = b_final
+            effect_payload_spectrum[i][3] = amplitude
 
     # Mirror the color channels for symmetric output
     r = np.concatenate((r[::-1], r))
@@ -432,9 +488,21 @@ visualization_effect = visualize_energy
 # Global microphone
 mic = microphone.Microphone(microphone_update)
 
-def begin():
+def update_lamp_effect(mode):
+
+    global lamp_effect
+
+    if(mode == 100):
+        lamp_effect = 'BUBBLE'
+    elif(mode == 101):
+        lamp_effect = 'BARS'
+    elif(mode == 102):
+        lamp_effect = 'BARS_COLOR'
+
+def begin(mode):
 
     mic.begin()
+    update_lamp_effect(mode)
 
 def stop():
 

@@ -54,7 +54,7 @@ def evaluate_mode_req(mode_req):
         # Send UDP sync request
         udp_handler.send_sync_req()
 
-        visualization.begin()
+        visualization.begin(mode_req)
         # Update local memory
         system_status['mode'] = mode_req
 
@@ -79,6 +79,9 @@ def evaluate_mode_req(mode_req):
         udp_handler.send_mode_request(mode_req)
         # Update local memory
         system_status['mode'] = mode_req
+
+        #Update lamp effect
+        visualization.update_lamp_effect(mode_req)
 
     # Either request to the same mode or a request between non-music modes. Do nothing
     else:
@@ -128,6 +131,7 @@ def update_configuration():
     select_visualization_type(system_status['effect_type'])
 
     update_frequency_windows(system_status['num_windows'])
+    visualization.generate_frequency_colors(system_status['r'],system_status['g'],system_status['b'], system_status['color_increment'])
 
 
 def mqtt_network_loop():
@@ -186,7 +190,7 @@ if __name__== "__main__":
 
 
     mqtt_controller.begin()
-#    visualization.configure_gui()
+    visualization.configure_gui()
 
     while True:
 
