@@ -101,9 +101,10 @@ def interpolate(y, new_length):
 r_filt = dsp.ExpFilter(np.tile(0.01, config.N_PIXELS // 2),
                        alpha_decay=0.1, alpha_rise=0.99)
 g_filt = dsp.ExpFilter(np.tile(0.01, config.N_PIXELS // 2),
-                       alpha_decay=0.1, alpha_rise=0.3)
+                       alpha_decay=0.05, alpha_rise=0.3)
 b_filt = dsp.ExpFilter(np.tile(0.01, config.N_PIXELS // 2),
                        alpha_decay=0.1, alpha_rise=0.5)
+
 common_mode = dsp.ExpFilter(np.tile(0.01, config.N_PIXELS // 2),
                        alpha_decay=0.99, alpha_rise=0.01)
 p_filt = dsp.ExpFilter(np.tile(1, (3, config.N_PIXELS // 2)),
@@ -301,14 +302,21 @@ def visualize_spectrum(y):
 
         #Find the freq with the maximum contribution
         max_freq = 0
+        max_val = 0
         if( (max_r > max_g) and (max_r > max_b)):
             max_freq = np.argmax(r[freq_start:freq_end]) + freq_start
-        if( (max_g > max_r) and (max_g > max_b)):
+            max_val = max_r
+        elif( (max_g > max_r) and (max_g > max_b)):
             max_freq = np.argmax(g[freq_start:freq_end]) + freq_start
-        if( (max_b > max_r) and (max_b > max_g)):
+            max_val = max_g
+        elif( (max_b > max_r) and (max_b > max_g)):
             max_freq = np.argmax(b[freq_start:freq_end]) + freq_start
+            max_val = max_b
+
+        max_val = np.clip(max_val * 255,0,255).astype(int)
 
         #print("Max freq: ", max_freq)
+        #print("Max val: ", max_val)
 
         r_final = np.clip(r[max_freq] * 255,0,255).astype(int)
         g_final = np.clip(g[max_freq] * 255,0,255).astype(int)
@@ -321,13 +329,15 @@ def visualize_spectrum(y):
         effect_payload_spectrum[i][0] = r_final
         effect_payload_spectrum[i][1] = g_final
         effect_payload_spectrum[i][2] = b_final
-        effect_payload_spectrum[i][3] = compute_amplitude_energy(r_final,g_final,b_final)
+        effect_payload_spectrum[i][3] = compute_amplitude_energy(max_val,max_val,max_val)
 
     # Mirror the color channels for symmetric output
     r = np.concatenate((r[::-1], r))
     g = np.concatenate((g[::-1], g))
     b = np.concatenate((b[::-1], b))
     output = np.array([r,g,b]) * 255
+
+    #print(effect_payload_spectrum)
 
     return output
 
