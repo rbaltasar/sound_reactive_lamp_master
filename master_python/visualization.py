@@ -105,15 +105,16 @@ def interpolate(y, new_length):
     return z
 
 
-r_filt = dsp.ExpFilter(np.tile(0.01, config.N_PIXELS // 2),
-                       alpha_decay=0.1, alpha_rise=0.99)
-g_filt = dsp.ExpFilter(np.tile(0.01, config.N_PIXELS // 2),
-                       alpha_decay=0.05, alpha_rise=0.3)
-b_filt = dsp.ExpFilter(np.tile(0.01, config.N_PIXELS // 2),
-                       alpha_decay=0.1, alpha_rise=0.5)
+r_filt = dsp.ExpFilter(np.tile(0.01, config.N_PIXELS // 2), #0.1
+                       alpha_decay=0.5, alpha_rise=0.99)
+g_filt = dsp.ExpFilter(np.tile(0.01, config.N_PIXELS // 2), #0.05
+                       alpha_decay=0.5, alpha_rise=0.3)
+b_filt = dsp.ExpFilter(np.tile(0.01, config.N_PIXELS // 2), #0.1
+                       alpha_decay=0.5, alpha_rise=0.5)
 
 common_mode = dsp.ExpFilter(np.tile(0.01, config.N_PIXELS // 2),
                        alpha_decay=0.99, alpha_rise=0.01)
+
 p_filt = dsp.ExpFilter(np.tile(1, (3, config.N_PIXELS // 2)),
                        alpha_decay=0.1, alpha_rise=0.99)
 
@@ -151,8 +152,6 @@ def generate_frequency_colors(r_base, g_base, b_base, increment):
     #Check if update is needed
     if(r_base != frequency_colors_base[0] or g_base != frequency_colors_base[1] or b_base != frequency_colors_base[2] or increment != frequency_colors_increment):
 
-        print("Base color: ", r_base, g_base, b_base, " Increment: ", increment)
-
         #Translate base color to HSV
         hsv_base = rgb_utilities.rgb2hsv([r_base,g_base,b_base])
 
@@ -166,9 +165,6 @@ def generate_frequency_colors(r_base, g_base, b_base, increment):
             rgb_color = rgb_utilities.hsv2rgb(hsv_base)
 
             frequency_colors[i] = rgb_color
-
-
-        print("Generated color", frequency_colors)
 
         #Update the state
         frequency_colors_base[0] = r_base
@@ -356,9 +352,6 @@ def visualize_spectrum(y):
         max_val = np.clip(max_val * 255,0,255).astype(int)
         max_freq = np.clip(max_freq, 0, len(r)).astype(int)
 
-        print("Max freq: ", max_freq)
-        print("Max val: ", max_val)
-
         r_final = np.clip(r[max_freq] * 255,0,255).astype(int)
         g_final = np.clip(g[max_freq] * 255,0,255).astype(int)
         b_final = np.clip(b[max_freq] * 255,0,255).astype(int)
@@ -371,7 +364,7 @@ def visualize_spectrum(y):
             effect_payload_spectrum[i][3] = compute_amplitude_energy(max_val,max_val,max_val)
         elif(lamp_effect == 'BUBBLE'):
 
-            amplitude = compute_amplitude_energy(r_final,g_final,b_final) ** 0.8
+            amplitude = compute_amplitude_energy(max_val,max_val,max_val) ** 0.8 #compute_amplitude_energy(r_final,g_final,b_final) ** 0.8
 
             if(amplitude < 5):
                 r_final = 0
@@ -491,17 +484,42 @@ mic = microphone.Microphone(microphone_update)
 def update_lamp_effect(mode):
 
     global lamp_effect
+    global r_filt, g_filt, b_filt
 
     if(mode == 100):
         lamp_effect = 'BUBBLE'
+
+        r_filt = dsp.ExpFilter(np.tile(0.01, config.N_PIXELS // 2),
+                               alpha_decay=0.5, alpha_rise=0.99)
+        g_filt = dsp.ExpFilter(np.tile(0.01, config.N_PIXELS // 2),
+                               alpha_decay=0.5, alpha_rise=0.3)
+        b_filt = dsp.ExpFilter(np.tile(0.01, config.N_PIXELS // 2),
+                               alpha_decay=0.5, alpha_rise=0.5)
+
     elif(mode == 101):
         lamp_effect = 'BARS'
+
+        r_filt = dsp.ExpFilter(np.tile(0.01, config.N_PIXELS // 2),
+                               alpha_decay=0.1, alpha_rise=0.99)
+        g_filt = dsp.ExpFilter(np.tile(0.01, config.N_PIXELS // 2),
+                               alpha_decay=0.05, alpha_rise=0.3)
+        b_filt = dsp.ExpFilter(np.tile(0.01, config.N_PIXELS // 2),
+                               alpha_decay=0.1, alpha_rise=0.5)
+
     elif(mode == 102):
         lamp_effect = 'BARS_COLOR'
+
+        r_filt = dsp.ExpFilter(np.tile(0.01, config.N_PIXELS // 2),
+                               alpha_decay=0.1, alpha_rise=0.99)
+        g_filt = dsp.ExpFilter(np.tile(0.01, config.N_PIXELS // 2),
+                               alpha_decay=0.05, alpha_rise=0.3)
+        b_filt = dsp.ExpFilter(np.tile(0.01, config.N_PIXELS // 2),
+                               alpha_decay=0.1, alpha_rise=0.5)
 
 def begin(mode):
 
     mic.begin()
+
     update_lamp_effect(mode)
 
 def stop():

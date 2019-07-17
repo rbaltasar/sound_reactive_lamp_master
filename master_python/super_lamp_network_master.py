@@ -102,8 +102,6 @@ def update_frequency_windows(num_windows):
     #Get new frequency windows
     freq_windows = mqtt_controller.get_freq_windows()
 
-    print("Freq windows: ", freq_windows)
-
     #Compute masks out of frequency windows
     for i in range(0,num_windows):
 
@@ -115,8 +113,6 @@ def update_frequency_windows(num_windows):
                 mask |= 1 << j
 
         frequency_windows_masks.append(mask)
-
-    print("New computed masks: ", frequency_windows_masks)
 
     #Set the masks in the UDP controller
     udp_handler.set_window_masks(frequency_windows_masks)
@@ -131,6 +127,7 @@ def update_configuration():
     select_visualization_type(system_status['effect_type'])
 
     update_frequency_windows(system_status['num_windows'])
+
     visualization.generate_frequency_colors(system_status['r'],system_status['g'],system_status['b'], system_status['color_increment'])
 
 
