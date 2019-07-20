@@ -3,10 +3,19 @@ from udp_controller import udp_handler
 from time import sleep
 import visualization
 
-mqtt_evaluation_ratio = 20
+#  ------- Global variables -------- #
+#Process MQTT messages at a lower rate than UDP
+mqtt_evaluation_ratio = 10
 mqtt_evaluation_counter = 0
+#Bit mask containing slave connection status (0: offline / 1: online)
+alive_rx_mask = 0
+#Frequency window used for each lamp (only spectrum window effect)
+frequency_windows_masks = []
+# MQTT communication controller (only used here)
+mqtt_controller = MQTTController()
+#UDP communication handling object is declared in udp_controller.py to be used also from visualization.py
 
-# Shared memory (dictionary)
+# Shared memory (dictionary). Todo: structure?
 system_status = { \
     'mode': 0, \
     'effect_type': 0, \
@@ -23,23 +32,19 @@ system_status = { \
     'num_windows': 1
     }
 
-#Frequency window used for each lamp (only spectrum window effect)
-frequency_windows_masks = []
-
-# Communication controllers
-mqtt_controller = MQTTController()
-
+#Select a visualization effect based on the lamp mode requested
 def select_visualization_type(effect_type):
 
     if(effect_type == 0):
         visualization.visualization_effect = visualization.visualize_scroll
     elif(effect_type == 1):
         visualization.visualization_effect = visualization.visualize_energy
-    elif(effect_type == 2):
+    elif(effect_type == 2): #TODO: remove this effect
         visualization.visualization_effect = visualization.visualize_energy_spectrum
     elif(effect_type == 3):
         visualization.visualization_effect = visualization.visualize_spectrum
 
+#Handle communication and visualization in base of the requested mode
 def evaluate_mode_req(mode_req):
 
     print("Received mode req: ", mode_req)
@@ -47,13 +52,13 @@ def evaluate_mode_req(mode_req):
     # System requires switch from MQTT to UDP
     if( (system_status['mode'] < 100) and (mode_req >= 100 ) ):
 
-        # Start UDP client
+        # Start UDP handler
         udp_handler.begin()
         # Send mode change request to the slaves via UDP
         udp_handler.send_mode_request(mode_req)
         # Send UDP sync request
         udp_handler.send_sync_req()
-
+        # Begin visualization and signal processing
         visualization.begin(mode_req)
         # Update local memory
         system_status['mode'] = mode_req
@@ -65,9 +70,9 @@ def evaluate_mode_req(mode_req):
         sleep(3)
         # Send mode change request to the slaves via UDP
         udp_handler.send_mode_request(mode_req)
-        # Stop UDP client
+        # Stop UDP handler
         udp_handler.stop()
-        # Stop audio analyzer
+        # Stop visualization and signal processing
         visualization.stop()
         # Update local memory
         system_status['mode'] = mode_req
@@ -79,15 +84,10 @@ def evaluate_mode_req(mode_req):
         udp_handler.send_mode_request(mode_req)
         # Update local memory
         system_status['mode'] = mode_req
-
         #Update lamp effect
         visualization.update_lamp_effect(mode_req)
 
-    # Either request to the same mode or a request between non-music modes. Do nothing
-    else:
-
-        pass
-
+#Update the frequency window associated to each slave (MQTT request)
 def update_frequency_windows(num_windows):
 
     print("Updating frequency windows")
@@ -99,7 +99,7 @@ def update_frequency_windows(num_windows):
     while len(frequency_windows_masks) > 0:
         frequency_windows_masks.pop(0)
 
-    #Get new frequency windows
+    #Get new frequency windows from MQTT request
     freq_windows = mqtt_controller.get_freq_windows()
 
     #Compute masks out of frequency windows
@@ -117,41 +117,84 @@ def update_frequency_windows(num_windows):
     #Set the masks in the UDP controller
     udp_handler.set_window_masks(frequency_windows_masks)
 
-
+#Handle a configuration request
 def update_configuration():
 
     #Send configuration parameters to the slaves
     udp_handler.send_configuration(system_status['effect_delay'], system_status['effect_direction'],system_status['r'],system_status['g'],system_status['b'], system_status['color_increment'])
-
-    #Update the visualization algorithm
+    #Update the visualization algorithm and signal processing
     select_visualization_type(system_status['effect_type'])
-
     update_frequency_windows(system_status['num_windows'])
-
+    #Generate new color for each frequency from a base color
     visualization.generate_frequency_colors(system_status['r'],system_status['g'],system_status['b'], system_status['color_increment'])
+
+def compute_alive_masks(current_time, alive_rx_timestamps):
+
+    mask = 0
+    mask_pos = 0
+
+    #Iterate all received timestamps. Todo: check size for corner cases
+    for rx_timestamp in alive_rx_timestamps:
+
+        #Slave is not alive
+        if( (current_time - rx_timestamp) > config.ALIVE_CHECK_RX ):
+            is_alive = 0
+        else:
+            is_alive = 1
+
+        #Add to the mask
+        mask |= is_alive << mask_pos
+        mask_pos += 1
+
+    return mask
+
+def handle_alive_check():
+
+    timestamp = ?? #Get current time
+
+    #Handle Alive Check TX
+    last_message_sent = udp_handler.get_last_tx_timestamp()
+    if( (timestamp - last_message_sent) > config.ALIVE_CHECK_TX ):
+        #A sync request suffices to resart the alive timer on the slaves
+        udp_handler.send_sync_req()
+
+    #Handle Alive Check RX
+    #Get last received rx timestamps
+    alive_rx_timestamps = udp_handler.get_last_rx_timestamps() #List of RX timestamps
+    #Compute a mask with the alive slaves
+    alive_rx_mask_local = compute_alive_masks(timestamp, alive_rx_timestamps) #Mask indicating the slaves with alive communication
+    #Publish the mask on change
+    if(alive_rx_mask_local != alive_rx_mask):
+        mqtt_controller.publish_alive_rx_status(alive_rx_mask_local)
+        alive_rx_mask = alive_rx_mask_local
 
 
 def mqtt_network_loop():
 
     global mqtt_evaluation_counter
 
+    #Check for new MQTT updates only every 10 loop iterations
     if(mqtt_evaluation_counter is mqtt_evaluation_ratio):
 
+        #Reset evaluation counter
         mqtt_evaluation_counter = 0
 
+        #Check for mode request
         if(mqtt_controller.is_new_msg_mode()):
 
+            #Get message
             mqtt_msg = mqtt_controller.get_msg_info()
 
-            # Evaluate the mode request. Act accordingly
+            # Evaluate the mode request
             evaluate_mode_req(mqtt_msg['mode'])
 
+        #Check for configuration messages
         elif(mqtt_controller.is_new_msg_config()):
 
-            changes_count = 0
-
+            #Get message
             mqtt_msg = mqtt_controller.get_msg_info()
 
+            #Update local memory. Todo: same data structure and one single copy
             system_status['min_freq'] = mqtt_msg['min_freq']
             system_status['num_windows'] = mqtt_msg['num_freq_windows']
             system_status['max_freq'] = mqtt_msg['max_freq']
@@ -166,16 +209,20 @@ def mqtt_network_loop():
             system_status['num_windows'] = mqtt_msg['num_freq_windows']
             system_status['num_lamps'] = mqtt_msg['num_lamps']
 
+            #Update configuration
             update_configuration()
 
     else:
 
         mqtt_evaluation_counter += 1
 
+    #Handle the alive checks
+    handle_alive_check()
+
 
 def iddle_loop():
 
-    sleep(0.1)
+    sleep(0.5)
 
 
 def music_loop():

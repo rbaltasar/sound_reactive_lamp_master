@@ -91,6 +91,12 @@ class MQTTController:
         self._client.disconnect() #disconnect
         self._client.loop_stop() #stop loop
 
+    def publish_alive_rx_status(self, status):
+
+        print("Publishing Alive status of slaves (mask): ", status)
+
+        self._client.publish("lamp_network_music/alive_rx_mask", str(status))
+
     def is_new_msg_mode(self):
 
         retVal = self._new_msg_mode

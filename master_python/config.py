@@ -102,3 +102,7 @@ N_ROLLING_HISTORY = 2
 
 MIN_VOLUME_THRESHOLD = 1e-7
 """No music visualization displayed if recorded audio volume below threshold"""
+
+#Alive communication interval (in seconds)
+ALIVE_CHECK_RX = 5
+ALIVE_CHECK_TX = 5

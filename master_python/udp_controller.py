@@ -1,6 +1,7 @@
 import socket
 import config
 from time import sleep
+from threading import Thread
 
 class UDPController:
 
@@ -10,27 +11,67 @@ class UDPController:
         self._last_g = 0
         self._last_b = 0
         self._last_ampl = 0
-
         self._window_masks = []
-
         self._mode = 100
+
+        #Timestamps of last received alive checks. Maximum of 6 lamps supported
+        self._last_timestamps = [0,0,0,0,0,0]
 
     def __del__(self):
 
         self.stop()
 
-    #Start the client
+    #Start the client. Todo: error handling
     def begin(self):
 
-        print("Starting UDP client")
+        print("Starting UDP payload socket")
+        #Create a UDP socket for payload messages (muticast) - Tx only
+        self._sock_payload = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        #Create a UDP socket for Alive check - Rx only
+        print("Starting UDP alive socket")
+        self._sock_alive = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self._handle_alive = True
+        server_address = ('localhost',7002) #Todo: get master IP
+        self._sock_alive.bind(server_address)
+        self._sock_alive.settimeout(1) #Allow safe exit of socket handle thread
 
-        self._sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        #Start alive check thread
+        self._alive_thread = Thread(target = self.handle_alive_check)
+        self._alive_thread.start()
 
+    #Stop sockets and finish thread
     def stop(self):
 
-        print("Stoping UDP client")
+        print("Stoping UDP payload socket")
+        self._sock_payload.close()
+        print("Stoping UDP alive socket")
+        self._handle_alive = False
+        self._alive_thread.join()
+        self._sock_alive.close()
 
-        self._sock.close()
+    #Handle alive check (Rx only)
+    def handle_alive_check(self):
+
+        print("Starting alive check thread")
+
+        #Keep looping until finish signal
+        while self._handle_alive is True:
+
+          try:
+            data, address = self._sock.recvfrom(12)
+            print('Received {} from {}'.format(data, address))
+
+            #Get the node id of the received alive message
+            node_id = int(data) #Todo: check this
+            #Get current time
+            timestamp = #Todo:
+            #Update the timestamp for the received node. Todo: mutex?
+            self._last_timestamps[node_id] = timestamp
+
+          except socket.timeout:
+            continue
+
+        print("Exit alive check thread")
 
     def set_mode(self,mode):
 
@@ -39,6 +80,11 @@ class UDPController:
     def set_window_masks(self,masks):
 
         self._window_masks = masks
+
+    def get_last_rx_timestamps(self):
+
+        #Todo: mutex?
+        return self._last_timestamps
 
     def compare_and_update(self, r,g,b,ampl):
 
@@ -58,7 +104,7 @@ class UDPController:
 
         for i in range(1,repetitions):
 
-            self._sock.sendto(msg, (config.UDP_IP, config.UDP_PORT))
+            self._sock_payload.sendto(msg, (config.UDP_IP, config.UDP_PORT))
             sleep(delay_rep)
 
         sleep(delay_end)
