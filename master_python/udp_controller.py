@@ -2,6 +2,7 @@ import socket
 import config
 from time import sleep
 from threading import Thread
+from datetime import datetime
 
 class UDPController:
 
@@ -31,7 +32,7 @@ class UDPController:
         print("Starting UDP alive socket")
         self._sock_alive = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self._handle_alive = True
-        server_address = ('localhost',7002) #Todo: get master IP
+        server_address = ('',7002) #Todo: get master IP
         self._sock_alive.bind(server_address)
         self._sock_alive.settimeout(1) #Allow safe exit of socket handle thread
 
@@ -64,7 +65,7 @@ class UDPController:
             #Get the node id of the received alive message
             node_id = int(data) #Todo: check this
             #Get current time
-            timestamp = #Todo:
+            timestamp = datetime.now()
             #Update the timestamp for the received node. Todo: mutex?
             self._last_timestamps[node_id] = timestamp
 
