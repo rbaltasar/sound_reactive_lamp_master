@@ -137,7 +137,7 @@ def compute_alive_masks(current_time, alive_rx_timestamps):
     for rx_timestamp in alive_rx_timestamps:
 
         #Slave is not alive
-        if( (current_time - rx_timestamp) > config.ALIVE_CHECK_RX ):
+        if( (current_time - rx_timestamp).total_seconds() > config.ALIVE_CHECK_RX ):
             is_alive = 0
         else:
             is_alive = 1
@@ -150,7 +150,7 @@ def compute_alive_masks(current_time, alive_rx_timestamps):
 
 def handle_alive_check():
 
-    timestamp = ?? #Get current time
+    timestamp = datetime.now()
 
     #Handle Alive Check TX
     last_message_sent = udp_handler.get_last_tx_timestamp()
