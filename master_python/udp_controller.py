@@ -1,6 +1,6 @@
 import socket
 import config
-from time import sleep
+import time
 from threading import Thread
 from datetime import datetime
 
@@ -23,6 +23,7 @@ class UDPController:
 
         #Timestamps of last received alive checks. Maximum of 6 lamps supported
         self._last_timestamps = [0,0,0,0,0,0]
+        self._get_last_tx_timestamp = 0
 
         #Mask for individual lamp addressing (spectrum mode)
         self._window_masks = []
@@ -42,7 +43,7 @@ class UDPController:
         print("Starting UDP alive socket")
         self._sock_alive = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self._handle_alive = True
-        server_address = ('',7002) #Todo: get master IP
+        server_address = ('192.168.2.123',7002) #Todo: get master IP
         self._sock_alive.bind(server_address)
         self._sock_alive.settimeout(1) #Allow safe exit of socket handle thread
 
@@ -74,13 +75,14 @@ class UDPController:
 
           try:
             #Receive (with timeout) from the socket
-            data, address = self._sock.recvfrom(12) #Todo: max buffer size?
-            print('Received {} from {}'.format(data, address))
+            data, address = self._sock_alive.recvfrom(12) #Todo: max buffer size?
 
             #Get the node id of the received alive message
-            node_id = int(data) #Todo: check this
+            data = bytearray(data)
+            node_id = int(data[0]) #Todo: check this
+            print('Received alive check from node {} with address {}'.format(node_id, address))
             #Get current time
-            timestamp = datetime.now()
+            timestamp = time.time()
             #Update the timestamp for the received node. Todo: mutex?
             self._last_timestamps[node_id] = timestamp
 
@@ -101,6 +103,10 @@ class UDPController:
 
         #Todo: mutex?
         return self._last_timestamps
+
+    def get_last_tx_timestamp(self):
+
+        return self._get_last_tx_timestamp
 
     #Check if requested color+amplitude is different than last one
     def compare_and_update(self, r,g,b,ampl):
@@ -123,9 +129,11 @@ class UDPController:
         for i in range(0,repetitions):
 
             self._sock_payload.sendto(msg, (config.UDP_IP, config.UDP_PORT))
-            sleep(delay_rep)
+            time.sleep(delay_rep)
 
-        sleep(delay_end)
+        time.sleep(delay_end)
+
+        self._get_last_tx_timestamp = time.time()
 
     #Send synchroniztion request
     def send_sync_req(self):

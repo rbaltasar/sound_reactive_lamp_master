@@ -1,7 +1,9 @@
 from mqtt_controller import MQTTController
 from udp_controller import udp_handler
-from time import sleep
+import time
 import visualization
+import config
+from datetime import datetime
 
 #  ------- Global variables -------- #
 #Process MQTT messages at a lower rate than UDP
@@ -67,13 +69,15 @@ def evaluate_mode_req(mode_req):
     elif( (system_status['mode'] >= 100) and (mode_req < 100 ) ):
 
         #Sleep a while to reduce network congestion to ensure that the mode request is received
-        sleep(3)
+        time.sleep(3)
         # Send mode change request to the slaves via UDP
         udp_handler.send_mode_request(mode_req)
         # Stop UDP handler
         udp_handler.stop()
         # Stop visualization and signal processing
         visualization.stop()
+        # Display al lamps as OFFLINE in the Dashboard
+        mqtt_controller.publish_alive_rx_status(0)
         # Update local memory
         system_status['mode'] = mode_req
 
@@ -138,7 +142,7 @@ def compute_alive_masks(current_time, alive_rx_timestamps):
     for rx_timestamp in alive_rx_timestamps:
 
         #Slave is not alive
-        if( (current_time - rx_timestamp).total_seconds() > config.ALIVE_CHECK_RX ):
+        if( (current_time - rx_timestamp) > config.ALIVE_CHECK_RX*3 ):
             is_alive = 0
         else:
             is_alive = 1
@@ -153,7 +157,9 @@ def compute_alive_masks(current_time, alive_rx_timestamps):
 #Publish lamp connection status on-change
 def handle_alive_check():
 
-    timestamp = datetime.now()
+    global alive_rx_mask
+
+    timestamp = time.time()
 
     #Handle Alive Check TX
     last_message_sent = udp_handler.get_last_tx_timestamp()
@@ -219,16 +225,15 @@ def mqtt_network_loop():
 
         mqtt_evaluation_counter += 1
 
-    #Handle the alive checks
-    handle_alive_check()
-
 
 def iddle_loop():
-    sleep(0.5)
+    time.sleep(0.5)
 
 def music_loop():
     #Feed the signal processing algorithms
     visualization.feed()
+    #Handle alive communication in UDP
+    handle_alive_check()
 
 
 if __name__== "__main__":
@@ -240,12 +245,25 @@ if __name__== "__main__":
         visualization.configure_gui()
 
     #Endless loop
-    while True:
+    do_loop = True
+    while do_loop:
 
-        # Check for new MQTT requests
-        mqtt_network_loop()
-        #Music mode is distinguished by mode ID >= 100
-        if(system_status['mode'] >= 100):
-            music_loop()
-        else:
-            iddle_loop()
+        try:
+
+            # Check for new MQTT requests
+            mqtt_network_loop()
+            #Music mode is distinguished by mode ID >= 100
+            if(system_status['mode'] >= 100):
+                music_loop()
+            else:
+                iddle_loop()
+
+        except KeyboardInterrupt:
+                print "Ctrl-c received! Sending kill to threads..."
+                # Display al lamps as OFFLINE in the Dashboard
+                mqtt_controller.publish_alive_rx_status(0)
+                #Stop MQTT controller
+                mqtt_controller.stop()
+                #Stop UDP controller
+                udp_handler.stop()
+                do_loop = False
