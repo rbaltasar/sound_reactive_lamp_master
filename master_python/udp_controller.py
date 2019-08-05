@@ -2,6 +2,7 @@ import socket
 import config
 from time import sleep
 from threading import Thread
+from datetime import datetime
 
 #--------------------------------------------#
 #Class to handle UDP communication between
@@ -79,7 +80,7 @@ class UDPController:
             #Get the node id of the received alive message
             node_id = int(data) #Todo: check this
             #Get current time
-            timestamp = #Todo:
+            timestamp = datetime.now()
             #Update the timestamp for the received node. Todo: mutex?
             self._last_timestamps[node_id] = timestamp
 
