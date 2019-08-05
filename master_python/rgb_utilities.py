@@ -1,6 +1,6 @@
 import numpy as np
 
-
+#Conversion from RGB [0,255] to H [0,360], S[0,1], V[0,1]
 def rgb2hsv(in_rgb):
 
     in_val = np.array([0.0,0.0,0.0])
@@ -60,7 +60,7 @@ def rgb2hsv(in_rgb):
 
     return out
 
-
+#Conversion from H [0,360], S[0,1], V[0,1] to RGB [0,255] 
 def hsv2rgb(in_val):
 
     out = np.array([0.0,0.0,0.0])

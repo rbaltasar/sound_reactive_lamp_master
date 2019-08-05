@@ -3,10 +3,15 @@ import numpy as np
 import pyaudio
 import config
 
+#--------------------------------------------#
+#Refactor the original code into a OO style
+#Allow to start/stop the audio input sampling and buffering
+#--------------------------------------------#
 class Microphone:
 
     def __init__(self, callback):
 
+        #Define callback that processes the signal
         self._callback = callback
 
     def __del__(self):
@@ -32,6 +37,7 @@ class Microphone:
         self._stream.close()
         self._p.terminate()
 
+    #This function is called from the main loop
     def take_samples(self):
 
         try:
@@ -46,6 +52,7 @@ class Microphone:
                 print('Audio buffer has overflowed {} times'.format(self._overflows))
 
 
+#Original function. Todo: remove
 def start_stream(callback):
     p = pyaudio.PyAudio()
     frames_per_buffer = int(config.MIC_RATE / config.FPS)

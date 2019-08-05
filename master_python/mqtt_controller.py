@@ -2,6 +2,10 @@ import time
 import paho.mqtt.client as paho
 import json
 
+#--------------------------------------------#
+#Class to handle MQTT communication between
+#the master and the User
+#--------------------------------------------#
 class MQTTController:
 
     def __init__(self):
@@ -11,6 +15,7 @@ class MQTTController:
         #Define callback for received topics
         self._client.on_message =  self.callback
 
+        #Initialize local variables
         self._min_freq = 0
         self._max_freq = 0
         self._effect_delay = 0
@@ -24,17 +29,21 @@ class MQTTController:
         self._color_increment = 1
         self._effect_type = 0
 
+        #Frequency window mapped to each slave
         self._freq_windows = [0,0,0,0,0,0]
 
     def __del__(self):
 
+        #Stop the MQTT client
         self.stop()
 
     def callback(self, client, userdata, message):
 
+        #Parse Json message
         received_msg = json.loads(message.payload)
         print("received message =",received_msg)
 
+        #Handle configuration message
         if(message.topic == "lamp_network_music/configuration"):
 
             print("Received a configuration message")
@@ -58,6 +67,7 @@ class MQTTController:
             self._freq_windows[4] = int(received_msg['freq_window_5'])
             self._freq_windows[5] = int(received_msg['freq_window_6'])
 
+        #Handle mode request message
         elif(message.topic == "lamp_network/mode_request"):
 
             print("Received a mode request message")
@@ -69,9 +79,12 @@ class MQTTController:
 
         print("Starting MQTT client")
 
-        self._client.connect("192.168.2.118",1883)#TODO: add as configuration parameter
+        #Todo: IP address and port in config
+        self._client.connect("192.168.2.118",1883)
+        #Start client thread
         self._client.loop_start()
 
+        #Local message indicators
         self._new_msg_mode = False
         self._new_msg_config = False
 
@@ -80,6 +93,7 @@ class MQTTController:
         self._client.subscribe("lamp_network/mode_request")
         self._client.subscribe("lamp_network_music/configuration")
 
+        #Reset local states
         self._min_freq = 0
         self._max_freq = 0
         self._effect_delay = 0
@@ -87,16 +101,15 @@ class MQTTController:
     def stop(self):
 
         print("Stopping MQTT client")
-
         self._client.disconnect() #disconnect
-        self._client.loop_stop() #stop loop
+        self._client.loop_stop() #stop loop thread
 
     def publish_alive_rx_status(self, status):
 
         print("Publishing Alive status of slaves (mask): ", status)
-
         self._client.publish("lamp_network_music/alive_rx_mask", str(status))
 
+    #Check for new mode change message and reset the flag
     def is_new_msg_mode(self):
 
         retVal = self._new_msg_mode
@@ -104,6 +117,7 @@ class MQTTController:
 
         return retVal
 
+    #Check for new config message and reset the flag
     def is_new_msg_config(self):
 
         retVal = self._new_msg_config
@@ -111,10 +125,12 @@ class MQTTController:
 
         return retVal
 
+    #Get MQTT message content. Todo: single structure/array?
     def get_msg_info(self):
 
         return {'mode': self._mode, 'min_freq': self._min_freq, 'max_freq': self._max_freq, 'effect_delay': self._effect_delay, 'effect_direction': self._effect_direction, 'num_lamps': self._num_lamps, 'num_freq_windows': self._num_freq_windows, 'r':self._base_color_r, 'g': self._base_color_g, 'b': self._base_color_b, 'color_increment': self._color_increment, 'effect_type': self._effect_type}
 
+    #Get frequency windows assigned to each slave
     def get_freq_windows(self):
 
         return self._freq_windows

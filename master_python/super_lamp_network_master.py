@@ -128,6 +128,7 @@ def update_configuration():
     #Generate new color for each frequency from a base color
     visualization.generate_frequency_colors(system_status['r'],system_status['g'],system_status['b'], system_status['color_increment'])
 
+#Compute a bitwise mask to indicate what lamps have an alive UDP communication
 def compute_alive_masks(current_time, alive_rx_timestamps):
 
     mask = 0
@@ -148,6 +149,8 @@ def compute_alive_masks(current_time, alive_rx_timestamps):
 
     return mask
 
+#Handle UDP alive check communication
+#Publish lamp connection status on-change
 def handle_alive_check():
 
     timestamp = ?? #Get current time
@@ -168,7 +171,7 @@ def handle_alive_check():
         mqtt_controller.publish_alive_rx_status(alive_rx_mask_local)
         alive_rx_mask = alive_rx_mask_local
 
-
+#Handle MQTT communication
 def mqtt_network_loop():
 
     global mqtt_evaluation_counter
@@ -221,30 +224,28 @@ def mqtt_network_loop():
 
 
 def iddle_loop():
-
     sleep(0.5)
 
-
 def music_loop():
-
+    #Feed the signal processing algorithms
     visualization.feed()
 
 
 if __name__== "__main__":
 
-
+    #Start MQTT communication
     mqtt_controller.begin()
-    visualization.configure_gui()
 
+    if config.USE_GUI is True:
+        visualization.configure_gui()
+
+    #Endless loop
     while True:
 
         # Check for new MQTT requests
         mqtt_network_loop()
-
+        #Music mode is distinguished by mode ID >= 100
         if(system_status['mode'] >= 100):
-
             music_loop()
-
         else:
-
             iddle_loop()
