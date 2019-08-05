@@ -43,8 +43,10 @@ class UDPController:
         print("Starting UDP alive socket")
         self._sock_alive = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self._handle_alive = True
-        server_address = ('192.168.2.123',7002) #Todo: get master IP
-        self._sock_alive.bind(server_address)
+        self._sock_alive.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self._sock_alive.bind(('',7002))
+        #server_address = ('192.168.2.255',7002) #Todo: get master IP
+        #self._sock_alive.bind(server_address)
         self._sock_alive.settimeout(1) #Allow safe exit of socket handle thread
 
         #Start alive check thread
