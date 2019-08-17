@@ -77,6 +77,7 @@ def evaluate_mode_req(mode_req):
         # Stop visualization and signal processing
         visualization.stop()
         # Display al lamps as OFFLINE in the Dashboard
+        global alive_rx_mask
         alive_rx_mask = 0
         mqtt_controller.publish_alive_rx_status(alive_rx_mask)
         # Update local memory

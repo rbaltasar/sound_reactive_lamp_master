@@ -66,6 +66,10 @@ class UDPController:
         #Close alive socket
         self._sock_alive.close()
 
+        #Reset alive internal variables
+        self._last_timestamps = [0,0,0,0,0,0]
+        self._get_last_tx_timestamp = 0
+
     #Handle alive check (Rx only).
     #Run on sepparate thread from main thread
     def handle_alive_check(self):
@@ -103,7 +107,7 @@ class UDPController:
 
     def get_last_rx_timestamps(self):
 
-        #Todo: mutex?
+        #Todo: mutex needed?
         return self._last_timestamps
 
     def get_last_tx_timestamp(self):
